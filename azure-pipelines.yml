@@ -5,16 +5,18 @@ variables:
   buildConfiguration: 'Release'
   webRepository: 'web'
   tag: '$(Build.BuildId)'
-  - stage: 'Build'
+  
+stages:
+- stage: 'Build'
   displayName: 'Build and push'
-  jobs:  
+  jobs: 
   - job: 'Build'
     displayName: 'Build job'
     pool:
       vmImage: 'ubuntu-20.04'
     steps:
     - task: Docker@2
-      displayName: 'Build and push the image to container registry'
+      displayName: 'build and push the iamge to container registry'
       inputs:
         command: buildAndPush
         buildContext: $(Build.Repository.LocalPath)
@@ -75,18 +77,25 @@ variables:
       artifact: drop
 
 - stage: 'Deploy'
-  displayName: 'Deploy the container'
+  displayName: 'Deploy the web application'
   dependsOn: Build
   jobs:
-  - job: 'Deploy'
-    displayName: 'Deploy job'
+  - deployment: Deploy
     pool:
       vmImage: 'ubuntu-20.04'
+    environment: spike
     variables:
     - group: Release
-    steps:
-    - task: AzureWebAppContainer@1
-      inputs:
-       appName: $(WebAppName)
-       azureSubscription: 'Resource Manager - Tailspin - Space Game'
-       imageName: $(RegistryName)/$(webRepository):$(build.buildId)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              appName: '$(WebAppName)'
+              appType: webAppLinux
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/Tailspin.SpaceGame.Web.zip'
